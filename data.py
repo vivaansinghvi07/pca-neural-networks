@@ -24,21 +24,27 @@ class PCA:
         self._components = evectors
         self.cum_variance_explained = np.cumsum(evalues / sum(evalues))
 
-    def get_components(self, thresh: float = 0.95):
-        n_components = np.argwhere(
-            self.cum_variance_explained >= thresh
-        ) [0][0] + 1 # first instance of being over
-        return torch.Tensor(self._components[:, :n_components])
+    def get_projection_matrix(self, thresh: float = 0.95):
+        n_components = (
+            np.argwhere(self.cum_variance_explained >= thresh)[0][0] + 1
+        )  # first instance of being over
+        components = self._components[:, :n_components]
+        return torch.Tensor(
+            components @ np.linalg.inv(components.T @ components) @ components.T
+        )
+
 
 class PCATransform:
-    pca_info: PCA 
+    pca: PCA
     thresh: float
 
     def __init__(self, thresh: float) -> None:
         self.thresh = thresh
+        self.pca = precompute_mnist_params()["pca"]
 
-    def __call__(self, x: torch.Tensor) -> torch.Tensor:
-        ...
+    def __call__(self, x: torch.Tensor) -> torch.Tensor: 
+        kept_features = x[self.pca.keep_features]
+        return self.pca.get_projection_matrix(self.thresh) @ kept_features
 
 
 def cache(func: typing.Callable):
@@ -72,14 +78,14 @@ def precompute_mnist_params():
     }
 
 
-def get_mnist_pca(train: bool, *, pca_thresh: float = 0.90, batch_size: int = 32) -> DataLoader:
+def get_mnist_pca(
+    train: bool, *, pca_thresh: float = 0.90, batch_size: int = 32
+) -> DataLoader:
     data = torchvision.datasets.MNIST(
         "./data",
-        transform= torchvision.transforms.Compose([
-            torchvision.transforms.ToTensor(),
-            torch.flatten,
-            PCATransform(pca_thresh)
-        ]),
+        transform=torchvision.transforms.Compose(
+            [torchvision.transforms.ToTensor(), torch.flatten, PCATransform(pca_thresh)]
+        ),
         train=train,
         download=True,
     )
@@ -87,14 +93,16 @@ def get_mnist_pca(train: bool, *, pca_thresh: float = 0.90, batch_size: int = 32
 
 
 def get_mnist_raw(train: bool, batch_size: int = 32) -> DataLoader:
-    norm = precompute_mnist_params()['normalization']
+    norm = precompute_mnist_params()["normalization"]
     data = torchvision.datasets.MNIST(
         "./data",
-        transform= torchvision.transforms.Compose([
-            torchvision.transforms.ToTensor(),
-            norm,
-            torch.flatten,
-        ]),
+        transform=torchvision.transforms.Compose(
+            [
+                torchvision.transforms.ToTensor(),
+                norm,
+                torch.flatten,
+            ]
+        ),
         train=train,
         download=True,
     )
