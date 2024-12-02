@@ -9,62 +9,87 @@ from torch.utils.data import DataLoader
 
 def cache(func: typing.Callable):
     d = {}
+
     @wraps(func)
     def inner(*args, **kwargs):
         key = args + tuple(kwargs.items())
         if key not in d:
             d[key] = func(*args, **kwargs)
         return d[key]
+
     return inner
 
 
 class PCA:
+    """
+    Stores information and exposes functions to compute the PCA
+    for a given dataset, and is callable as to apply said PCA to
+    a given input.
+    """
 
-    __keep_features: np.ndarray
-    __base_data: np.ndarray
-    __cum_variance_explained: np.ndarray
-    __components: np.ndarray
+    _hash: int
+    _keep_features: np.ndarray
+    _base_data_mean: np.ndarray
+    _base_data_std_dev: np.ndarray
+    _standardized_data: np.ndarray
+    _cum_variance_explained: np.ndarray
+    _components: np.ndarray
 
     def __init__(self, data: np.ndarray):
+        """Calculates the PCA and stores the results"""
 
-        self.__keep_features = data.sum(axis=0) != 0
-        self.__base_data = data[:, self.__keep_features]
-        standardized_features = (
-            self.__base_data - self.__base_data.mean(axis=0)
-        ) / self.__base_data.std(axis=0)
-        cov_matrix = np.cov(standardized_features.T)
+        self._keep_features = data.sum(axis=0) != 0
+        base_data = data[:, self._keep_features]
+        self._base_data_mean = base_data.mean(axis=0)
+        self._base_data_std_dev = base_data.std(axis=0)
+        self._standardized_data = (
+            base_data - self._base_data_mean
+        ) / self._base_data_std_dev
+
+        cov_matrix = np.cov(self._standardized_data.T)
         evalues, evectors = np.linalg.eig(cov_matrix)
-        self.__components = evectors
-        self.__cum_variance_explained = np.cumsum(evalues / sum(evalues))
-        self.__hash = id(self.__components)  # arbitrary, just needs to be different per object
+        self._components = evectors
+        self._cum_variance_explained = np.cumsum(evalues / sum(evalues))
+        self._hash = id(
+            self._components
+        )  # arbitrary, just needs to be different per object
+
+    def _standardize(self, x: np.ndarray) -> np.ndarray:
+        return (x - self._base_data_mean) / self._base_data_std_dev
 
     @cache
-    def _get_projection_matrix(self, thresh: float = 0.95):
+    def _get_projection_components(self, thresh: float = 0.95):
+        """Returns the projection vectors for a specific PCA threshold"""
         n_components = (
-            np.argwhere(self.__cum_variance_explained >= thresh)[0][0] + 1
+            np.argwhere(self._cum_variance_explained >= thresh)[0][0] + 1
         )  # first instance of being over
-        components = self.__components[:, :n_components]
-        return components @ np.linalg.inv(components.T @ components) @ components.T
+        components = self._components[:, :n_components]
+        return components
 
     @cache
-    def _compute_normalization(
-        self, thresh: float
-    ) -> typing.Tuple[float, float]:
-        projected_data = self._get_projection_matrix(thresh) @ self.__base_data.T
+    def _compute_normalization(self, thresh: float) -> typing.Tuple[float, float]:
+        """Returns the mean and standard deviation of the feature set at some threshold"""
+        projected_data = self._standardized_data.dot(
+            self._get_projection_components(thresh)
+        )
         return projected_data.mean(), projected_data.std()
 
     def __call__(self, x: torch.Tensor, thresh: float = 0.95):
-        mat = self._get_projection_matrix(thresh)
+        mat = self._get_projection_components(thresh)
         mean, std = self._compute_normalization(thresh)
-        kept_features = x[self.__keep_features]
-        return (torch.Tensor(mat) @ kept_features - mean) / std
+        standardized_x = self._standardize(x.numpy()[self._keep_features])
+        return torch.Tensor((standardized_x.dot(mat) - mean) / std)
 
     # for caching to work
     def __hash__(self) -> int:
-        return self.__hash
+        return self._hash
 
 
 class PCATransform:
+    """
+    Small wrapper around PCA supporting the PyTorch transforms API
+    """
+
     pca: PCA
     thresh: float
 
@@ -74,6 +99,7 @@ class PCATransform:
 
     def __call__(self, x: torch.Tensor) -> torch.Tensor:
         return self.pca(x, thresh=self.thresh)
+
 
 @cache
 def precompute_mnist_params():
