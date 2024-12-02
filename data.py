@@ -1,5 +1,5 @@
 import typing
-from functools import wraps
+import functools
 
 import numpy as np
 import torch
@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 def cache(func: typing.Callable):
     d = {}
 
-    @wraps(func)
+    @functools.wraps(func)
     def inner(*args, **kwargs):
         key = args + tuple(kwargs.items())
         if key not in d:
@@ -57,13 +57,16 @@ class PCA:
     def _standardize(self, x: np.ndarray) -> np.ndarray:
         return (x - self._base_data_mean) / self._base_data_std_dev
 
-    @cache
-    def _get_projection_components(self, thresh: float = 0.95):
-        """Returns the projection vectors for a specific PCA threshold"""
-        n_components = (
+    @cache 
+    def get_n_params(self, thresh: float) -> int:
+        return (
             np.argwhere(self._cum_variance_explained >= thresh)[0][0] + 1
         )  # first instance of being over
-        components = self._components[:, :n_components]
+
+    @cache
+    def _get_projection_components(self, thresh: float = 0.95) -> np.ndarray:
+        """Returns the projection vectors for a specific PCA threshold"""
+        components = self._components[:, :self.get_n_params(thresh)]
         return components
 
     @cache
