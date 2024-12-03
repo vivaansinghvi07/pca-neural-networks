@@ -1,5 +1,5 @@
-import typing
 import functools
+import typing
 
 import numpy as np
 import torch
@@ -57,7 +57,7 @@ class PCA:
     def _standardize(self, x: np.ndarray) -> np.ndarray:
         return (x - self._base_data_mean) / self._base_data_std_dev
 
-    @cache 
+    @cache
     def get_n_params(self, thresh: float) -> int:
         return (
             np.argwhere(self._cum_variance_explained >= thresh)[0][0] + 1
@@ -66,7 +66,7 @@ class PCA:
     @cache
     def _get_projection_components(self, thresh: float = 0.95) -> np.ndarray:
         """Returns the projection vectors for a specific PCA threshold"""
-        components = self._components[:, :self.get_n_params(thresh)]
+        components = self._components[:, : self.get_n_params(thresh)]
         return components
 
     @cache

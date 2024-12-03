@@ -1,12 +1,14 @@
-from net import test_network, train_network, PCANetwork, NormalNetwork
 import matplotlib.pyplot as plt
+
+from net import NormalNetwork, PCANetwork, test_network, train_network
+
 
 def draw_metric_graph(
     *,
     pca_thresh: float = 0.90,
     epochs: int = 20,
     metric: str = "accuracy",
-    unpack_data: bool = True
+    unpack_data: bool = True,
 ) -> None:
     print("Initializing networks...")
     pca_net = PCANetwork(pca_thresh=pca_thresh, unpack_data=unpack_data)
@@ -22,4 +24,3 @@ def draw_metric_graph(
     plt.savefig(f"{metric}_over_{epochs}.png")
     plt.legend()
     plt.show()
-

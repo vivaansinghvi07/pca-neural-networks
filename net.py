@@ -100,7 +100,9 @@ def train_network(
     optimizer = torch.optim.SGD(net.parameters(), lr=learning_rate)
 
     for epoch in range(epochs):
-        for images, labels in tqdm.tqdm(net.train_loader, f"Training epoch {epoch + 1}"):
+        for images, labels in tqdm.tqdm(
+            net.train_loader, f"Training epoch {epoch + 1}"
+        ):
             # initialize gradients to zero
             optimizer.zero_grad()
             # Forward pass - inexplicit call to NormalNetwork.forward()
