@@ -47,9 +47,10 @@ class PCA:
         ) / self._base_data_std_dev
 
         cov_matrix = np.cov(self._standardized_data.T)
-        evalues, evectors = np.linalg.eig(cov_matrix)
-        self._components = evectors
-        self._cum_variance_explained = np.cumsum(evalues / sum(evalues))
+        evalues, evectors = np.linalg.eigh(cov_matrix)
+        sort_order = np.flip(evalues.argsort())
+        self._components = evectors[:, sort_order]
+        self._cum_variance_explained = np.cumsum(evalues[sort_order] / sum(evalues))
         self._hash = id(
             self._components
         )  # arbitrary, just needs to be different per object

@@ -21,6 +21,27 @@ def draw_metric_graph(
         normal_results.append(test_network(normal_net)[metric])
     plt.plot([*range(epochs)], normal_results, label="Normal Results")
     plt.plot([*range(epochs)], pca_results, label="PCA Results")
-    plt.savefig(f"{metric}_over_{epochs}.png")
+    plt.ylim(0, 1)
+    plt.legend()
+    plt.show()
+
+
+def draw_dataset_size_graph(
+    pca_thresh: float = 0.90,
+    metric: str = "accuracy",
+    epochs: int = 2,
+):
+    pca_results, normal_results = [], []
+    sizes = [100, 200, 300, 400, 500, 750, 1000, 2000, 3000, 4000, 5000]
+    for size in sizes:
+        pca_net = PCANetwork(pca_thresh=pca_thresh)
+        normal_net = NormalNetwork()
+        train_network(pca_net, epochs=epochs, data_cutoff=size)
+        train_network(normal_net, epochs=epochs, data_cutoff=size)
+        pca_results.append(test_network(pca_net)[metric])
+        normal_results.append(test_network(normal_net)[metric])
+    plt.plot(sizes, normal_results, label="Normal Results")
+    plt.plot(sizes, pca_results, label="PCA Results")
+    plt.ylim(0, 1)
     plt.legend()
     plt.show()
