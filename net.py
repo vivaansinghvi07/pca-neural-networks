@@ -1,4 +1,5 @@
 import typing
+from abc import ABCMeta
 
 import torch
 import tqdm
@@ -8,15 +9,25 @@ from torch import nn
 from data import get_mnist_pca, get_mnist_raw, precompute_mnist_params
 
 
-class NormalNetwork(nn.Module):
+class Network(metaclass=ABCMeta):
+    batch_size: int
+    forward_prob: nn.Module
+    train_loader: typing.Iterable[typing.Tuple[torch.Tensor, torch.Tensor]]
+    test_loader: typing.Iterable[typing.Tuple[torch.Tensor, torch.Tensor]]
+    test_data_len: int
+    loss_func: torch.nn.CrossEntropyLoss
+
+
+class NormalNetwork(nn.Module, Network):
     """
     Input shape: (N, 728)  -- the flattened images
     Output shape: (N, 10)  -- the class probabilities
     """
 
-    def __init__(self, batch_size=32):
+    def __init__(self, batch_size: int = 32, unpack_data: bool = False):
         # normalNetWork inherits nn.Module's attributes
         super(NormalNetwork, self).__init__()
+        self.batch_size = batch_size
         self.forward_prob = nn.Sequential(
             # input is a batch of 28x28 images, by default - weights are initialized randomly between [ -sqrt(1/784), sqrt(1/784) ] and biases are initialized to zero
             nn.Linear(pow(28, 2), 512),
@@ -27,6 +38,11 @@ class NormalNetwork(nn.Module):
         )
         self.train_loader = get_mnist_raw(train=True, batch_size=batch_size)
         self.test_loader = get_mnist_raw(train=False, batch_size=batch_size)
+        self.test_data_len = len(self.test_loader.dataset)  # type: ignore
+        if unpack_data:
+            self.train_loader = [*self.train_loader]
+            self.test_loader = [*self.test_loader]
+
         # applies LogSoftmax then NLLLoss
         self.loss_func = nn.CrossEntropyLoss()
 
@@ -34,13 +50,17 @@ class NormalNetwork(nn.Module):
         return self.forward_prob(input_x)
 
 
-class PCANetwork(nn.Module):
+class PCANetwork(nn.Module, Network):
     """
     Input shape: (N, x)    -- the principal components
     Output shape: (N, 10)  -- class probabilities
     """
 
-    def __init__(self, pca_thresh: float = 0.9, batch_size: int = 32):
+    def __init__(
+        self, pca_thresh: float = 0.9, batch_size: int = 32, unpack_data: bool = False
+    ):
+        super(PCANetwork, self).__init__()
+        self.batch_size = batch_size
         self.forward_prob = nn.Sequential(
             nn.Linear(precompute_mnist_params()["pca"].get_n_params(pca_thresh), 256),
             nn.ReLU(),  # hidden layer 1, relu => max(0, x)
@@ -55,14 +75,17 @@ class PCANetwork(nn.Module):
         self.test_loader = get_mnist_pca(
             train=False, pca_thresh=pca_thresh, batch_size=batch_size
         )
-    
+        self.test_data_len = len(self.test_loader.dataset)  # type: ignore
+        if unpack_data:
+            self.train_loader = [*self.train_loader]
+            self.test_loader = [*self.test_loader]
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.forward_prob(x)
 
 
 def train_network(
     net: NormalNetwork | PCANetwork,
-    train_data: torch.Tensor,
     *,
     save_weights: typing.Optional[str] = None,
     epochs: int = 20,
@@ -76,8 +99,8 @@ def train_network(
     """
     optimizer = torch.optim.SGD(net.parameters(), lr=learning_rate)
 
-    for _ in tqdm.trange(epochs):
-        for _, (images, labels) in enumerate(train_data):
+    for epoch in range(epochs):
+        for images, labels in tqdm.tqdm(net.train_loader, f"Training epoch {epoch + 1}"):
             # initialize gradients to zero
             optimizer.zero_grad()
             # Forward pass - inexplicit call to NormalNetwork.forward()
@@ -96,10 +119,7 @@ def train_network(
 
 
 def test_network(
-    net: NormalNetwork | PCANetwork,
-    test_data: torch.Tensor,
-    *,
-    load_weights: typing.Optional[str] = None
+    net: NormalNetwork | PCANetwork, *, load_weights: typing.Optional[str] = None
 ) -> dict[str, typing.Any]:
     """
     Test the neural network using `test_data`
@@ -114,13 +134,12 @@ def test_network(
     # initialize variables
     total_correct = 0
     total_loss = 0
-    test_data_size = len(net.test_loader.dataset)  # type: ignore
     model_predicted = []
     actual_labels = []
 
     # iterate through test data without backpropagation and gradient descent
     with torch.no_grad():
-        for images, labels in tqdm.tqdm(test_data):
+        for images, labels in tqdm.tqdm(net.test_loader, "Testing network"):
             # Forward pass
             outputLayer = net(images)
 
@@ -141,7 +160,7 @@ def test_network(
 
     return {
         "accuracy": total_correct
-        / test_data_size,  # number of correct predictions / num samples in test dataset
-        "loss": total_loss / len(test_data),  # summed loss / number of batches
+        / net.test_data_len,  # number of correct predictions / num samples in test dataset
+        "loss": total_loss / len(net.test_loader),  # summed loss / number of batches
         "confusion matrix": confusion_matrix(actual_labels, model_predicted),
     }
