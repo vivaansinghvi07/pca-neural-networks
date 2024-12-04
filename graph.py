@@ -1,7 +1,6 @@
 from time import perf_counter
-
 import matplotlib.pyplot as plt
-
+import seaborn as sb
 from net import NormalNetwork, PCANetwork, test_network, train_network
 
 
@@ -27,6 +26,8 @@ def draw_metric_graph(
         plt.plot([*range(epochs)], res, label=f"PCA (Thresh {t})")
     plt.title(f"{metric.title()} Over {epochs} Epochs with Different Networks")
     plt.legend()
+    plt.ylabel('%')
+    plt.xlabel('Epoch')
     plt.show()
 
 def draw_time_graph(
@@ -41,6 +42,10 @@ def draw_time_graph(
         start = perf_counter()
         train_network(net, epochs=epochs)
         times.append(perf_counter() - start)
-    plt.bar(["normal"] + [f"thresh {t}" for t in pca_thresh], times)
+        
+    categories = ["normal"] + [f"thresh {t}" for t in pca_thresh]
+    sb.set_theme(style="whitegrid")
+    sb.barplot( x = categories, y= times, hue = categories)
     plt.title(f"Time Taken to Train a Network for {epochs} Epochs")
+    plt.ylabel("Time (s)")
     plt.show()
