@@ -1,2 +1,3 @@
-# PCA-neural-networks
-Demonstration of Principal Components Analysis using neural networks
+# Principal Component Analysis and Neural Networks
+
+Code for the Final Project of MATH 214, applied linear algebra.
