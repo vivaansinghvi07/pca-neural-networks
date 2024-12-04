@@ -1,5 +1,6 @@
 import typing
 from abc import ABCMeta
+from math import log2
 
 import torch
 import tqdm
@@ -63,12 +64,14 @@ class PCANetwork(Network):
     ):
         super(PCANetwork, self).__init__()
         self.batch_size = batch_size
+        n_params = precompute_mnist_params()["pca"].get_n_params(pca_thresh)
+        hidden_layer_dim = 2 ** int(log2(n_params) - 1)
         self.forward_prob = nn.Sequential(
-            nn.Linear(precompute_mnist_params()["pca"].get_n_params(pca_thresh), 64),
+            nn.Linear(n_params, hidden_layer_dim),
             nn.ReLU(),  # hidden layer 1, relu => max(0, x)
-            nn.Linear(64, 64),
+            nn.Linear(hidden_layer_dim, hidden_layer_dim),
             nn.ReLU(),  # hidden layer 2
-            nn.Linear(64, 10),
+            nn.Linear(hidden_layer_dim, 10),
         )
         self.loss_func = nn.CrossEntropyLoss()
         self.train_loader = get_mnist_pca(

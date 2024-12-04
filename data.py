@@ -42,15 +42,13 @@ class PCA:
         base_data = data[:, self._keep_features]
         self._base_data_mean = base_data.mean(axis=0)
         self._base_data_std_dev = base_data.std(axis=0)
-        self._standardized_data = (
-            base_data - self._base_data_mean
-        ) / self._base_data_std_dev
-
+        self._standardized_data = (base_data - self._base_data_mean) / self._base_data_std_dev
         cov_matrix = np.cov(self._standardized_data.T)
         evalues, evectors = np.linalg.eigh(cov_matrix)
         sort_order = np.flip(evalues.argsort())
         self._components = evectors[:, sort_order]
         self._cum_variance_explained = np.cumsum(evalues[sort_order] / sum(evalues))
+
         self._hash = id(
             self._components
         )  # arbitrary, just needs to be different per object

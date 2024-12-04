@@ -1,3 +1,5 @@
+from time import perf_counter
+
 import matplotlib.pyplot as plt
 
 from net import NormalNetwork, PCANetwork, test_network, train_network
@@ -5,43 +7,40 @@ from net import NormalNetwork, PCANetwork, test_network, train_network
 
 def draw_metric_graph(
     *,
-    pca_thresh: float = 0.90,
+    pca_thresh: list[float],
     epochs: int = 20,
     metric: str = "accuracy",
     unpack_data: bool = True,
 ) -> None:
     print("Initializing networks...")
-    pca_net = PCANetwork(pca_thresh=pca_thresh, unpack_data=unpack_data)
+    pca_nets = [PCANetwork(pca_thresh=t, unpack_data=unpack_data) for t in pca_thresh]
     normal_net = NormalNetwork(unpack_data=unpack_data)
     pca_results, normal_results = [], []
     for _ in range(epochs):
-        train_network(pca_net, epochs=1)
+        for net in pca_nets:
+            train_network(net, epochs=1)
         train_network(normal_net, epochs=1)
-        pca_results.append(test_network(pca_net)[metric])
+        pca_results.append(tuple(test_network(net)[metric] for net in pca_nets))
         normal_results.append(test_network(normal_net)[metric])
     plt.plot([*range(epochs)], normal_results, label="Normal Results")
-    plt.plot([*range(epochs)], pca_results, label="PCA Results")
-    plt.ylim(0, 1)
+    for res, t in zip(zip(*pca_results), pca_thresh):
+        plt.plot([*range(epochs)], res, label=f"PCA (Thresh {t})")
+    plt.title(f"{metric.title()} Over {epochs} Epochs with Different Networks")
     plt.legend()
     plt.show()
 
-
-def draw_dataset_size_graph(
-    pca_thresh: float = 0.90,
-    metric: str = "accuracy",
-    epochs: int = 2,
-):
-    pca_results, normal_results = [], []
-    sizes = [100, 200, 300, 400, 500, 750, 1000, 2000, 3000, 4000, 5000]
-    for size in sizes:
-        pca_net = PCANetwork(pca_thresh=pca_thresh)
-        normal_net = NormalNetwork()
-        train_network(pca_net, epochs=epochs, data_cutoff=size)
-        train_network(normal_net, epochs=epochs, data_cutoff=size)
-        pca_results.append(test_network(pca_net)[metric])
-        normal_results.append(test_network(normal_net)[metric])
-    plt.plot(sizes, normal_results, label="Normal Results")
-    plt.plot(sizes, pca_results, label="PCA Results")
-    plt.ylim(0, 1)
-    plt.legend()
+def draw_time_graph(
+    pca_thresh: list[float],
+    epochs: int = 20,
+    unpack_data: bool = True,
+) -> None:
+    normal_net = NormalNetwork(unpack_data=unpack_data)
+    pca_nets = [PCANetwork(pca_thresh=t, unpack_data=unpack_data) for t in pca_thresh]
+    times = []
+    for net in [normal_net] + pca_nets:
+        start = perf_counter()
+        train_network(net, epochs=epochs)
+        times.append(perf_counter() - start)
+    plt.bar(["normal"] + [f"thresh {t}" for t in pca_thresh], times)
+    plt.title(f"Time Taken to Train a Network for {epochs} Epochs")
     plt.show()
