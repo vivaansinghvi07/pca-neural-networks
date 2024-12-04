@@ -32,11 +32,11 @@ class NormalNetwork(Network):
         self.batch_size = batch_size
         self.forward_prob = nn.Sequential(
             # input is a batch of 28x28 images, by default - weights are initialized randomly between [ -sqrt(1/784), sqrt(1/784) ] and biases are initialized to zero
-            nn.Linear(pow(28, 2), 512),
+            nn.Linear(pow(28, 2), 256),
             nn.ReLU(),  # hidden layer 1, relu => max(0, x)
-            nn.Linear(512, 512),
+            nn.Linear(256, 256),
             nn.ReLU(),  # hidden layer 2
-            nn.Linear(512, 10),
+            nn.Linear(256, 10),
         )
         self.train_loader = get_mnist_raw(train=True, batch_size=batch_size)
         self.test_loader = get_mnist_raw(train=False, batch_size=batch_size)
