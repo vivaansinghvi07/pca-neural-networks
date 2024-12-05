@@ -56,6 +56,9 @@ class PCA:
     def _standardize(self, x: np.ndarray) -> np.ndarray:
         return (x - self._base_data_mean) / self._base_data_std_dev
 
+    def _unstandardize(self, x: np.ndarray) -> np.ndarray:
+        return x * self._base_data_std_dev + self._base_data_mean
+
     @cache
     def get_n_params(self, thresh: float) -> int:
         return (
@@ -76,6 +79,14 @@ class PCA:
         )
         return projected_data.mean(), projected_data.std()
 
+    def get_reconstructed_image(self, pca_x: torch.Tensor, thresh: float = 0.95):
+        mat = self._get_projection_components(thresh)  # shape (717, n)
+        mean, std = self._compute_normalization(thresh)
+        reconstructed = self._unstandardize(np.linalg.pinv(mat @ mat.T) @ mat @ (pca_x * std + mean))
+        ret = np.zeros((28*28,), dtype=np.float32)
+        ret[self._keep_features] = reconstructed
+        return ret
+        
     def __call__(self, x: torch.Tensor, thresh: float = 0.95):
         mat = self._get_projection_components(thresh)
         mean, std = self._compute_normalization(thresh)
@@ -122,7 +133,7 @@ def precompute_mnist_params():
 
 
 def get_mnist_pca(
-    train: bool, *, pca_thresh: float = 0.90, batch_size: int = 32
+    train: bool, *, pca_thresh: float = 0.95, batch_size: int = 32
 ) -> DataLoader:
     data = torchvision.datasets.MNIST(
         "./data",
